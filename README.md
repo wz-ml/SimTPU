@@ -6,14 +6,72 @@
 ```
 registers:
 r0 - r15: scalar int32 registers
-v0 - v7: fp vector registers, width 128, bfloat16
+r0 always holds 0.
 
-scratchpad: 128 KB, instruction-controlled (byte addressable), bfloat16
+scratchpad: 256 KB, instruction-controlled (byte addressable), bfloat16
 ```
 
 ```
-matmul:
-mfma.load_weights r0, r1 # load scratchpad[s0:s0+2**14] into the systolic arr's weight registers. This loads 
-mfma.matmul r0, 
+MXU:
+
+mfma.load_weights r1 # load scratchpad[r1:r1+2**14] into the systolic arr's weight registers. This loads a 128x128 array in row-major order.
+# Takes 128 cycles.
+
+mfma.matmul r2, r3 # stream activation tile from scratchpad[r2:r2+2**14] into systolic array and performs matmul.
+# r3 is a boolean for if the matmul accumulates onto previously computed results or overwrites them (1 for acc, 0 for overwrite).
+# This also takes 128 cycles.
+
+mfma.store r4 # drain accumulated results to scratchpad[r3:r3+2**14]. Also takes 128 cycles.
+```
 
 ```
+Elementwise unit:
+
+ewu.transpose r1 # load scratchpad[r1:r1+2**14] and tranposes it. 128 cycles.
+```
+
+```
+Memory:
+
+For dma instructions, the register order is `from`, `to`, `size`.
+dma.load r1, r2, r3 # loads mem[r1:r1+min(2**14, r3)] into scratchpad[r2:r2+min(2**14, r3)]. Takes 64 cycles.
+dma.store r1, r2, r3 # stores scratchpad[r1:r1+min(2**14, r3)] into mem[r2:r2+min(2**14, r3)]. Takes 64 cycles.
+```
+
+```
+Scalar:
+
+s.load r1, r2 # loads scalar from scratchpad[r2] into r1. 1 cycle.
+s.mult r1, r2, r3 # r1 = r2 * r3. 1 cycle.
+
+(arithmetic comparison ops)
+s.gre r1, r2, r3 # r1 = (r2 >= r3)
+s.g
+s.eq
+s.l
+s.le
+
+s.div s1, s2, s3 # r1 = s2 // s3
+s.add s1, s2, s3 # r1 = r2 + r3
+s.mod s1, s2, s3 # r1 = r2 % r3
+```
+
+```
+Vector:
+
+r1 = scratchpad address destination, r2 = source op scratchpad addr 1, r3 = source op scratchpad addr 2
+r4 = vector length (max 128)
+
+v.mult r1, r2, r3, r4
+v.gre r1, r2, r3 # r1 (scalar register) = 
+v.g
+v.eq
+v.l
+v.le
+v.div
+v.add
+v.mod
+
+v.dot r1, r2, r3, r4
+
+v.reduce_sum r1
