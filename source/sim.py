@@ -1,4 +1,5 @@
 import torch
+import math
 from dataclasses import dataclass, field
 from collections import Counter, defaultdict
 from source.constants import INST_TYPES, DEVICE, SCRATCH_ELEMS, HBM_ELEMS, NUM_REGS, TILE_SIZE, BUNDLE_CYCLES, SLOT_BUDGETS
@@ -64,6 +65,21 @@ class SimTPU:
             "tile": self.tile_unit,
             "dma": self.dma_unit,
         }
+
+    def to_hbm(self, ptr: int, data: torch.Tensor):
+        # useful for loading data into HBM before running a program
+        # not an instruction!
+        flattened = data.flatten().to(dtype=torch.bfloat16).to(self.device)
+        assert ptr + data.numel() <= HBM_ELEMS, f"Too many elements for HBM! Max address is {HBM_ELEMS}, tried to load {data.numel()} elements at {ptr}"
+        assert ptr >= 0, f"Ptr refers to negative address: {ptr}"
+        self.hbm[ptr:ptr+data.numel()] = flattened
+
+    def read_hbm(self, ptr: int, shape: tuple):
+        # read data after running program
+        numel = math.prod(shape)
+        assert ptr + numel <= HBM_ELEMS, f"Too many elements for HBM! Max address is {HBM_ELEMS}, tried to read {numel} elements at {ptr}"
+        assert ptr >= 0, f"Ptr refers to negative address: {ptr}"
+        return self.hbm[ptr:ptr+numel].reshape(shape).clone().to(dtype=torch.bfloat16, device=self.device)
 
     def run(self, bundles: list[Bundle]):
         for bundle in bundles:
