@@ -1,9 +1,8 @@
-from numpy._core.numeric import bool_
 import torch
 from dataclasses import dataclass, field
 from collections import Counter, defaultdict
-from constants import INST_TYPES, DEVICE, SCRATCH_ELEMS, HBM_ELEMS, NUM_REGS, TILE_SIZE, BUNDLE_CYCLES, SLOT_BUDGETS
-from functional_units import MXU, ScalarUnit, VectorUnit, TileUnit, DMAUnit
+from source.constants import INST_TYPES, DEVICE, SCRATCH_ELEMS, HBM_ELEMS, NUM_REGS, TILE_SIZE, BUNDLE_CYCLES, SLOT_BUDGETS
+from source.functional_units import MXU, ScalarUnit, VectorUnit, TileUnit, DMAUnit
 
 # Main sim file
 
@@ -40,16 +39,13 @@ class Bundler:
         return True
 
 class SimTPU:
-    def __init__(self, use_device: bool_ = True):
+    def __init__(self, use_device: bool = True):
         self.device = DEVICE if use_device else "cpu"
 
         # Architectural state (on GPU if possible)
         self.regs = [0] * NUM_REGS
         self.scratchpad = torch.zeros(SCRATCH_ELEMS, dtype=torch.bfloat16, device=self.device)
         self.hbm = torch.zeros(HBM_ELEMS, dtype=torch.bfloat16, device=self.device)
-    
-        # vector state
-        self.vector_length = TILE_SIZE
 
         # exec state (no branching, so we don't need a pc -> all unrolled)
         self.cycle_count = 0
@@ -80,13 +76,6 @@ class SimTPU:
             self.dispatch(instr)
 
     def dispatch(self, instr: Instr):
-        kwargs = {
-            "regs": self.regs,
-            "scratchpad": self.scratchpad,
-            "hbm": self.hbm,
-        }
-        kwargs.update({f"r{i}": self.regs[arg] for i, arg in enumerate(instr.args)})
-        # this is ugly and bad practice but works
-        # sid fix it if you want to
         fu_method = getattr(self.dispatch_table[instr.unit], instr.op)
-        fu_method(**kwargs)
+        fu_method(self.regs, self.scratchpad, self.hbm, *instr.args)
+        self.regs[0] = 0 # writing to r0 doesn't change anything

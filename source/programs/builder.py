@@ -29,6 +29,10 @@ class ProgramBuilder:
     # Scalar
     def s_load_imm(self, r1, val):
         self.instructions.append(Instr("scalar", "load_imm", (r1, val), 1))
+    def s_load(self, r1, r2, **kwargs):
+        self.instructions.append(Instr("scalar", "load", (r1, r2), 1))
+    def s_store(self, r1, r2, **kwargs):
+        self.instructions.append(Instr("scalar", "store", (r1, r2), 1))
     def s_add(self, r1, r2, r3):
         self.instructions.append(Instr("scalar", "add", (r1, r2, r3), 1))
     def s_sub(self, r1, r2, r3):
