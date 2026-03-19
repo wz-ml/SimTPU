@@ -1,0 +1,97 @@
+import torch
+import math
+from dataclasses import dataclass, field
+from collections import Counter, defaultdict
+from source.constants import INST_TYPES, DEVICE, SCRATCH_ELEMS, HBM_ELEMS, NUM_REGS, TILE_SIZE, BUNDLE_CYCLES, SLOT_BUDGETS
+from source.functional_units import MXU, ScalarUnit, VectorUnit, TileUnit, DMAUnit
+
+# Main sim file
+
+@dataclass
+class Instr:
+    unit: str  #  fu type: "mxu", "tile", "dma", "scalar", "vector"
+    op: str     #  op type: "add", "sub")
+    args: tuple   # (r1, r2, r3)
+    cycles: int
+
+@dataclass
+class Bundle:
+    instructions: list[Instr] = field(default_factory=list)
+    id: int = -1 # for debugging
+    def verify(self):
+        for instr in self.instructions:
+            assert instr.unit in INST_TYPES
+        cycle_counter = Counter()
+        for inst in self.instructions:
+            cycle_counter[inst.unit] += inst.cycles
+        for unit, cycles in cycle_counter.items():
+            assert cycles <= SLOT_BUDGETS[unit], f"Bundle has {cycles} cycles for {unit}, > max allowed{SLOT_BUDGETS[unit]}"
+        return True
+
+class Bundler:
+    # abstract base class for bundlers
+    def __init__(self):
+        pass
+    def __call__(self, instructions: list[Instr]) -> list[Bundle]:
+        raise NotImplementedError()
+    def verify(self, bundles: list[Bundle]) -> bool:
+        for bundle in bundles:
+            bundle.verify()
+        return True
+
+class SimTPU:
+    def __init__(self, use_device: bool = True):
+        self.device = DEVICE if use_device else "cpu"
+
+        # Architectural state (on GPU if possible)
+        self.regs = [0] * NUM_REGS
+        self.scratchpad = torch.zeros(SCRATCH_ELEMS, dtype=torch.bfloat16, device=self.device)
+        self.hbm = torch.zeros(HBM_ELEMS, dtype=torch.bfloat16, device=self.device)
+
+        # exec state (no branching, so we don't need a pc -> all unrolled)
+        self.cycle_count = 0
+
+        # functional units
+        self.mxu = MXU()
+        self.scalar_unit = ScalarUnit()
+        self.vector_unit = VectorUnit()
+        self.tile_unit = TileUnit()
+        self.dma_unit = DMAUnit()
+
+        self.dispatch_table = {
+            "mxu": self.mxu,
+            "scalar": self.scalar_unit,
+            "vector": self.vector_unit,
+            "tile": self.tile_unit,
+            "dma": self.dma_unit,
+        }
+
+    def to_hbm(self, ptr: int, data: torch.Tensor):
+        # useful for loading data into HBM before running a program
+        # not an instruction!
+        flattened = data.flatten().to(dtype=torch.bfloat16).to(self.device)
+        assert ptr + data.numel() <= HBM_ELEMS, f"Too many elements for HBM! Max address is {HBM_ELEMS}, tried to load {data.numel()} elements at {ptr}"
+        assert ptr >= 0, f"Ptr refers to negative address: {ptr}"
+        self.hbm[ptr:ptr+data.numel()] = flattened
+
+    def read_hbm(self, ptr: int, shape: tuple):
+        # read data after running program
+        numel = math.prod(shape)
+        assert ptr + numel <= HBM_ELEMS, f"Too many elements for HBM! Max address is {HBM_ELEMS}, tried to read {numel} elements at {ptr}"
+        assert ptr >= 0, f"Ptr refers to negative address: {ptr}"
+        return self.hbm[ptr:ptr+numel].reshape(shape).clone().to(dtype=torch.bfloat16, device=self.device)
+
+    def run(self, bundles: list[Bundle]):
+        for bundle in bundles:
+            self.exec_bundle(bundle)
+            self.cycle_count += BUNDLE_CYCLES
+        return self.cycle_count
+
+    def exec_bundle(self, bundle: Bundle):
+        for instr in bundle.instructions:
+            self.dispatch(instr)
+
+    def dispatch(self, instr: Instr):
+        fu_method = getattr(self.dispatch_table[instr.unit], instr.op)
+        fu_method(self.regs, self.scratchpad, self.hbm, *instr.args)
+        self.regs[0] = 0 # writing to r0 doesn't change anything
