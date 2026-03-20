@@ -4,6 +4,10 @@ from source.functional_units import TileUnit
 from source.constants import TILE_SIZE, TILE_ELEMS
 
 
+def _eye(device):
+    return torch.eye(TILE_SIZE, device=device).to(torch.bfloat16)
+
+
 @pytest.fixture
 def tu():
     return TileUnit()
@@ -11,7 +15,7 @@ def tu():
 
 class TestTileTranspose:
     def test_identity_unaffected(self, tu, regs, scratchpad, hbm):
-        mat = torch.eye(TILE_SIZE, dtype=torch.bfloat16, device=scratchpad.device)
+        mat = _eye(scratchpad.device)
         scratchpad[0:TILE_ELEMS] = mat.flatten()
         regs[1] = 0
         tu.transpose(regs, scratchpad, hbm, 1)

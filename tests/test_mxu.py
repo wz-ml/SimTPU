@@ -4,6 +4,10 @@ from source.functional_units import MXU
 from source.constants import TILE_SIZE, TILE_ELEMS
 
 
+def _eye(device):
+    return torch.eye(TILE_SIZE, device=device).to(torch.bfloat16)
+
+
 @pytest.fixture
 def mxu():
     return MXU()
@@ -36,7 +40,7 @@ class TestMXULoadWeights:
 
 class TestMXUMatmul:
     def test_basic_matmul(self, mxu, regs, scratchpad, hbm):
-        weights = torch.eye(TILE_SIZE, dtype=torch.bfloat16, device=scratchpad.device)
+        weights = _eye(scratchpad.device)
         acts = torch.ones(TILE_SIZE, TILE_SIZE, dtype=torch.bfloat16, device=scratchpad.device) * 2
         scratchpad[0:TILE_ELEMS] = weights.flatten()
         regs[1] = 0
@@ -51,7 +55,7 @@ class TestMXUMatmul:
 
     def test_matmul_overwrite(self, mxu, regs, scratchpad, hbm):
         mxu.mxu_acc = torch.ones(TILE_SIZE, TILE_SIZE, dtype=torch.bfloat16, device=scratchpad.device) * 99
-        mxu.mxu_weights = torch.eye(TILE_SIZE, dtype=torch.bfloat16, device=scratchpad.device)
+        mxu.mxu_weights = _eye(scratchpad.device)
         scratchpad[0:TILE_ELEMS] = 1.0
         regs[1] = 0
         regs[2] = 0  # acc=0 -> overwrite
@@ -60,7 +64,7 @@ class TestMXUMatmul:
         assert mxu.mxu_acc[0, 0].item() != 99
 
     def test_matmul_accumulate(self, mxu, regs, scratchpad, hbm):
-        mxu.mxu_weights = torch.eye(TILE_SIZE, dtype=torch.bfloat16, device=scratchpad.device)
+        mxu.mxu_weights = _eye(scratchpad.device)
         scratchpad[0:TILE_ELEMS] = 1.0
         regs[1] = 0
         regs[2] = 0  # overwrite first
