@@ -90,7 +90,7 @@ def run_benchmark(rows, cols):
     bundles = builder.build(OneBundleOneInstructionBundler())
     num_cycles = tpu.run(bundles)
     tpu_result = get_results(tpu, y_ptr, rows, cols)
-    assert torch.allclose(torch_result, tpu_result, atol=1e-2, rtol=1e-2)
+    assert torch.allclose(torch_result.to(device=tpu.device), tpu_result.to(device=tpu.device), atol=1e-2, rtol=1e-2)
     return num_cycles
 
 if __name__ == "__main__":
