@@ -1,9 +1,11 @@
+from typing import Any
 import torch
 import math
 from dataclasses import dataclass, field
 from collections import Counter, defaultdict
 from source.constants import INST_TYPES, DEVICE, SCRATCH_ELEMS, HBM_ELEMS, NUM_REGS, TILE_SIZE, BUNDLE_CYCLES, SLOT_BUDGETS
 from source.functional_units import MXU, ScalarUnit, VectorUnit, TileUnit, DMAUnit
+from source.profiler import Profiler
 
 # Main sim file
 
@@ -66,6 +68,9 @@ class SimTPU:
             "dma": self.dma_unit,
         }
 
+        # profiling
+        self.profiler = Profiler()
+
     def to_hbm(self, ptr: int, data: torch.Tensor):
         # useful for loading data into HBM before running a program
         # not an instruction!
@@ -84,6 +89,7 @@ class SimTPU:
     def run(self, bundles: list[Bundle]):
         for bundle in bundles:
             self.exec_bundle(bundle)
+            self.profiler.update_bundle(bundle)
             self.cycle_count += BUNDLE_CYCLES
         return self.cycle_count
 
