@@ -9,6 +9,7 @@ from source.programs.matmul import (
     get_results,
     matmul_kernel,
     matmul_kernel_all_regs,
+    matmul_kernel_pipelined_32regs,
     matmul_kernel_pipelined_128regs,
     setup,
 )
@@ -96,6 +97,7 @@ def main():
     kernels = [
         ("baseline", matmul_kernel),
         ("all_regs", matmul_kernel_all_regs),
+        ("pipe_32", matmul_kernel_pipelined_32regs),
         ("pipe_128", matmul_kernel_pipelined_128regs),
     ]
 

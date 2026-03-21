@@ -10,6 +10,7 @@ from source.constants import BUNDLE_CYCLES, INST_TYPES, NUM_REGS
 from source.programs.matmul import (
     get_results,
     matmul_kernel,
+    matmul_kernel_pipelined_32regs,
     matmul_kernel_pipelined_128regs,
     setup,
 )
@@ -54,11 +55,12 @@ def plot(results):
     units = ["mxu", "dma", "scalar", "vector", "tile"]
     x = np.arange(len(units))
     width = 0.18
-    colors = ["#4c78a8", "#f58518", "#54a24b", "#e45756"]
+    colors = ["#4c78a8", "#f58518", "#54a24b", "#72b7b2", "#e45756"]
+    width = 0.15
 
     fig, ax = plt.subplots(figsize=(10, 5.5))
     for idx, result in enumerate(results):
-        offsets = x + (idx - 1.5) * width
+        offsets = x + (idx - 2) * width
         heights = [result["util"][unit] for unit in units]
         ax.bar(offsets, heights, width=width, label=result["label"], color=colors[idx])
 
@@ -81,6 +83,7 @@ def main():
     results = [
         run_case("baseline + no bundling", matmul_kernel, OneBundleOneInstructionBundler()),
         run_case("baseline + greedy", matmul_kernel, GreedyBundler()),
+        run_case("pipe32 + no bundling", matmul_kernel_pipelined_32regs, OneBundleOneInstructionBundler()),
         run_case("pipe128 + no bundling", matmul_kernel_pipelined_128regs, OneBundleOneInstructionBundler()),
         run_case("pipe128 + greedy", matmul_kernel_pipelined_128regs, GreedyBundler()),
     ]
