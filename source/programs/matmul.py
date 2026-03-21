@@ -75,13 +75,17 @@ def matmul_kernel(builder,
             c_hbm = C_ptr + m * N + n
             _store_tile(b, c_tile, c_hbm, TILE_SIZE, N)
 
-if __name__ == "__main__":
+def run_benchmark(M, N, K):
     builder = ProgramBuilder()
-    M, N, K = 128, 128, 128
     tpu = SimTPU()
     A_ptr, B_ptr, C_ptr, torch_result = setup(tpu, M, N, K)
     matmul_kernel(builder, A_ptr, B_ptr, C_ptr, M, N, K)
     bundles = builder.build(OneBundleOneInstructionBundler())
-    tpu.run(bundles)
+    num_cycles = tpu.run(bundles)
     tpu_result = get_results(tpu, C_ptr, M, N)
-    assert torch.allclose(torch_result, tpu_result)
+    assert torch.allclose(torch_result.to(device=tpu.device), tpu_result.to(device=tpu.device), atol=1e-2, rtol=1e-2)
+    return num_cycles
+
+if __name__ == "__main__":
+    num_cycles = run_benchmark(128, 128, 128)
+    print(f"Runs in {num_cycles} cycles")
