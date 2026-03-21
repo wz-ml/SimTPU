@@ -28,7 +28,7 @@ class Profiler:
         units = INST_TYPES
         colors = dict(zip(units, sns.color_palette("tab10", len(units))))
 
-        fig, axes = plt.subplots(3, 2, figsize=(8, 12))
+        fig, axes = plt.subplots(2, 3, figsize=(12, 8))
         axes = axes.flatten()
 
         for idx, unit in enumerate(units):
