@@ -63,13 +63,6 @@ s.eq r1, r2, r3 # r1 = (r2 == r3)
 s.lt r1, r2, r3 # r1 = (r2 < r3) 
 s.le r1, r2, r3 # r1 = (r2 <= r3)
 s.neq r1, r2, r3 # r1 = (r2 != r3)
-
-# Branch instructions
-# comparisons are with 0; use arithmetic comparison to get expr and then branch on it.
-s.beqz r1, label # the label here is the bundle name to jump to. Read the bundling section for more.
-s.bnez r1, label
-
-s.jmp label # unconditional jump
 ```
 
 ```
