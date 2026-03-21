@@ -6,7 +6,7 @@ TILE_SIZE = int(os.getenv("SIMTPU_TILE_SIZE", 128))
 TILE_ELEMS = TILE_SIZE * TILE_SIZE
 SCRATCH_ELEMS = 128 * 1024 # 256KB, 2 bytes per elem
 HBM_ELEMS = 64 * 1024 * 1024 # 128MB, 2 bytes per elem
-NUM_REGS = 32
+NUM_REGS = int(os.getenv("SIMTPU_NUM_REGS", 32))
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BUNDLE_CYCLES = int(os.getenv("SIMTPU_BUNDLE_CYCLES", 128))
